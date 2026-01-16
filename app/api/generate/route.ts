@@ -17,13 +17,29 @@ type OpenRouterImageMessage = {
 }
 
 function extractImages(message: OpenRouterImageMessage) {
-  if (Array.isArray(message.images) && message.images.length > 0) return message.images
+  if (Array.isArray(message.images) && message.images.length > 0) {
+    const urls: string[] = []
+    for (const item of message.images as any[]) {
+      if (typeof item === "string") {
+        urls.push(item)
+        continue
+      }
+
+      const url =
+        item?.image_url?.url ??
+        item?.imageUrl?.url ?? // some SDKs camelCase this
+        item?.url
+
+      if (typeof url === "string") urls.push(url)
+    }
+    if (urls.length > 0) return urls
+  }
 
   // Fallback if provider returns images via content parts instead of `message.images`.
   if (Array.isArray(message.content)) {
     const urls: string[] = []
     for (const part of message.content as any[]) {
-      const url = part?.image_url?.url
+      const url = part?.image_url?.url ?? part?.imageUrl?.url
       if (typeof url === "string") urls.push(url)
     }
     if (urls.length > 0) return urls
@@ -83,4 +99,3 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
-
