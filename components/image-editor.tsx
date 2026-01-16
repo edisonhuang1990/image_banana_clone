@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { useDropzone } from "react-dropzone"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -9,44 +9,81 @@ import { Upload, ImageIcon, Sparkles, X, Loader2 } from "lucide-react"
 import { BananaIcon } from "./banana-icon"
 
 export function ImageEditor() {
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null)
   const [prompt, setPrompt] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null)
+  const [generatedImages, setGeneratedImages] = useState<string[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        setUploadedImage(reader.result as string)
-      }
-      reader.readAsDataURL(file)
+      setUploadedFile(file)
+      setError(null)
     }
   }, [])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
       "image/*": [".png", ".jpg", ".jpeg", ".webp"],
     },
     maxSize: 10 * 1024 * 1024,
     multiple: false,
+    noClick: true,
+    noKeyboard: true,
   })
 
+  useEffect(() => {
+    if (!uploadedFile) {
+      setUploadedImageUrl(null)
+      return
+    }
+
+    const url = URL.createObjectURL(uploadedFile)
+    setUploadedImageUrl(url)
+
+    return () => URL.revokeObjectURL(url)
+  }, [uploadedFile])
+
   const handleGenerate = async () => {
-    if (!uploadedImage || !prompt) return
+    if (!uploadedFile || !prompt) return
 
     setIsGenerating(true)
-    // Simulate AI generation
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-    setGeneratedImage(uploadedImage)
-    setIsGenerating(false)
+    setError(null)
+
+    try {
+      const formData = new FormData()
+      formData.append("prompt", prompt)
+      formData.append("image", uploadedFile)
+
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        body: formData,
+      })
+
+      const data = (await res.json()) as { images?: string[]; error?: string }
+
+      if (!res.ok) {
+        setError(data?.error ?? "Generation failed")
+        setGeneratedImages([])
+        return
+      }
+
+      setGeneratedImages(Array.isArray(data.images) ? data.images : [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generation failed")
+      setGeneratedImages([])
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const clearImage = () => {
-    setUploadedImage(null)
-    setGeneratedImage(null)
+    setUploadedFile(null)
+    setGeneratedImages([])
+    setError(null)
   }
 
   return (
@@ -74,13 +111,9 @@ export function ImageEditor() {
               {/* Image Upload Area */}
               <div className="mb-6">
                 <label className="text-sm font-medium mb-2 block">Reference Image</label>
-                {uploadedImage ? (
+                {uploadedImageUrl ? (
                   <div className="relative aspect-video rounded-lg overflow-hidden bg-muted">
-                    <img
-                      src={uploadedImage || "/placeholder.svg"}
-                      alt="Uploaded"
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={uploadedImageUrl} alt="Uploaded" className="w-full h-full object-cover" />
                     <button
                       onClick={clearImage}
                       className="absolute top-2 right-2 p-1.5 bg-background/80 rounded-full hover:bg-background transition-colors"
@@ -89,19 +122,24 @@ export function ImageEditor() {
                     </button>
                   </div>
                 ) : (
-                  <div
-                    {...getRootProps()}
-                    className={`
-                      border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                      ${isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}
-                    `}
-                  >
+                  <div {...getRootProps()}>
                     <input {...getInputProps()} />
-                    <Upload className="w-10 h-10 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground mb-1">
-                      {isDragActive ? "Drop the image here" : "Drag & drop an image here"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">or click to browse (Max 10MB)</p>
+                    <div
+                      className={`
+                        border-2 border-dashed rounded-lg p-8 text-center transition-colors
+                        ${isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}
+                      `}
+                    >
+                      <Upload className="w-10 h-10 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {isDragActive ? "Drop the image here" : "Drag & drop an image here"}
+                      </p>
+                      <Button type="button" variant="secondary" onClick={open} className="gap-2">
+                        <ImageIcon className="w-4 h-4" />
+                        Add Image
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-3">PNG/JPG/WEBP, Max 10MB</p>
+                    </div>
                   </div>
                 )}
               </div>
@@ -119,7 +157,7 @@ export function ImageEditor() {
 
               <Button
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90 gap-2"
-                disabled={!uploadedImage || !prompt || isGenerating}
+                disabled={!uploadedFile || !prompt || isGenerating}
                 onClick={handleGenerate}
               >
                 {isGenerating ? (
@@ -134,6 +172,8 @@ export function ImageEditor() {
                   </>
                 )}
               </Button>
+
+              {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
             </CardContent>
           </Card>
 
@@ -147,12 +187,8 @@ export function ImageEditor() {
               <p className="text-sm text-muted-foreground mb-6">Your ultra-fast AI creations appear here instantly</p>
 
               <div className="aspect-video rounded-lg bg-muted flex items-center justify-center overflow-hidden">
-                {generatedImage ? (
-                  <img
-                    src={generatedImage || "/placeholder.svg"}
-                    alt="Generated"
-                    className="w-full h-full object-cover"
-                  />
+                {generatedImages.length > 0 ? (
+                  <img src={generatedImages[0]} alt="Generated" className="w-full h-full object-cover" />
                 ) : (
                   <div className="text-center p-8">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
@@ -163,6 +199,22 @@ export function ImageEditor() {
                   </div>
                 )}
               </div>
+
+              {generatedImages.length > 1 ? (
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {generatedImages.slice(1).map((src, i) => (
+                    <button
+                      key={src}
+                      type="button"
+                      className="aspect-square rounded-md overflow-hidden bg-muted"
+                      onClick={() => setGeneratedImages([src, ...generatedImages.filter((x) => x !== src)])}
+                      aria-label={`Select output ${i + 2}`}
+                    >
+                      <img src={src} alt={`Output ${i + 2}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         </div>
