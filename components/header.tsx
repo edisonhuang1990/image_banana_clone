@@ -74,16 +74,19 @@ export function Header() {
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">
-          <Link href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Pricing
+          </Link>
+          <Link href="/#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             Features
           </Link>
-          <Link href="#showcase" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/#showcase" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             Showcase
           </Link>
-          <Link href="#reviews" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/#reviews" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             Reviews
           </Link>
-          <Link href="#faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href="/#faq" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             FAQ
           </Link>
         </nav>
@@ -104,8 +107,8 @@ export function Header() {
               Continue with Google
             </Button>
           )}
-          <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-            Try Free
+          <Button asChild size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Link href="/#editor">Try Free</Link>
           </Button>
         </div>
       </div>
